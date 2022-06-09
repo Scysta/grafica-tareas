@@ -36,7 +36,7 @@ if __name__ == "__main__":
     if not glfw.init():
         glfw.set_window_should_close(window, True)
 
-    # Creamos la venta
+    # Creamos la ventana
     width = 600
     height = 600
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Conectamos los keybinds a la ventana
     glfw.set_key_callback(window, on_key)
 
-    # Escogemos los shdaers
+    # Escogemos los shaders 
     pipeline = es.SimpleShaderProgram()
     glUseProgram(pipeline.shaderProgram)
 
