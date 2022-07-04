@@ -6,14 +6,15 @@ import sys, os.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from grafica import basic_shapes as bs
 from grafica import easy_shaders as es
-from grafica import gpu_shape 
 from grafica import transformations as tr
 from grafica import scene_graph as sg
+import catrom
 
 class Controller():
     def __init__(self):
         self.rotation = False
         self.view = 2
+        self.fillPolygon = True
 
 controller = Controller()
 
@@ -35,98 +36,152 @@ def on_key(window, key, scancode, action, mods):
     elif key == glfw.KEY_Q:
         glfw.set_window_should_close(window, True)
 
+    elif key == glfw.KEY_SPACE:
+        controller.fillPolygon = not controller.fillPolygon
+
     else: 
         print("Unknown key")
 
-def createPyramid(pipeline):
-    # Simplemente creamos las figuras y las mandamos a GPU
+def createColorPyramid(color):
     vertices = [
-            -0.5, -0.5, -0.5, 1, 0, 0,
-             0.5, -0.5, -0.5, 0, 1, 0,
-             0.0, -0.5, np.sqrt(0.75), 0, 0, 1,
-             0.0, 0.3, (-0.5 + np.sqrt(0.75))/2, 1, 1, 1
+            -0.5,  0.0,  0.0, *color,
+             0.5,  0.0,  0.0, *color,
+             0.0,  0.0,  np.sqrt(0.75),  *color,
+            -0.5, -1.0,  0.0, *color,
+             0.5, -1.0,  0.0, *color
             ]
     indices = [
             0, 1, 2,
-            1, 2, 3,
-            2, 0, 3
-          
+            3, 4, 1,
+            1, 0, 3,
+            4, 2, 1,
+            3, 0, 2,
+            4, 3, 2
             ]
 
-    gpuPyramid = gpu_shape.GPUShape()
-    gpuPyramid.initBuffers()
-    pipeline.setupVAO(gpuPyramid)
-    gpuPyramid.fillBuffers(vertices, indices, GL_STATIC_DRAW)
-    #redTriangle = bs.createRainbowTriangle()
-    #gpuRedTriangle = es.GPUShape().initBuffers()
-    #pipeline.setupVAO(gpuRedTriangle)
-    #gpuRedTriangle.fillBuffers(redTriangle.vertices, redTriangle.indices, GL_STATIC_DRAW)
+    return bs.Shape(vertices, indices)
 
-    #greenTriangle = bs.createRainbowTriangle()
-    #gpuGreenTriangle = es.GPUShape().initBuffers()
-    #pipeline.setupVAO(gpuGreenTriangle)
-    #gpuGreenTriangle.fillBuffers(greenTriangle.vertices, greenTriangle.indices, GL_STATIC_DRAW)
-    #
-    #blueTriangle = bs.createRainbowTriangle()
-    #gpuBlueTriangle = es.GPUShape().initBuffers()
-    #pipeline.setupVAO(gpuBlueTriangle)
-    #gpuBlueTriangle.fillBuffers(blueTriangle.vertices, blueTriangle.indices, GL_STATIC_DRAW)
+def createBlueQuad():
+    color1 = [135/255, 206/255, 235/255]
+    color2 = [0,       191/255, 1      ]
+    vertices = [
+            -1.0,  0.0, -1.0, *color1,
+             1.0,  0.0, -1.0, *color1,
+             1.0,  0.0,  1.0, *color2,
+            -1.0,  0.0,  1.0, *color2
+            ]
 
-    #grayTriangle = bs.createRainbowTriangle()
-    #gpuGrayTriangle = es.GPUShape().initBuffers()
-    #pipeline.setupVAO(gpuGrayTriangle)
-    #gpuGrayTriangle.fillBuffers(grayTriangle.vertices, grayTriangle.indices, GL_STATIC_DRAW)
+    indices = [
+            0, 1, 2, 2, 3, 0
+            ]
 
-    ## Creamos las caras como nodos de grafo
-    #bottomFace = sg.SceneGraphNode("bottomFace")
-    #bottomFace.transform = tr.matmul([
-    #    tr.translate(0, -0.43, 0),
-    #    tr.rotationX(np.pi/2)
+    return bs.Shape(vertices, indices)
+
+def createBoat(pipeline):
+    color = [139/255, 69/255, 19/255]
+
+    # Figuras en memoria
+    brownCube = bs.createColorCube(*color)
+    gpuBrownCube = es.GPUShape().initBuffers()
+    pipeline.setupVAO(gpuBrownCube)
+    gpuBrownCube.fillBuffers(brownCube.vertices, brownCube.indices, GL_STATIC_DRAW)
+
+    brownPyramid = createColorPyramid(color)
+    gpuBrownPyramid = es.GPUShape().initBuffers()
+    pipeline.setupVAO(gpuBrownPyramid)
+    gpuBrownPyramid.fillBuffers(brownPyramid.vertices, brownPyramid.indices, GL_STATIC_DRAW)
+
+    #blackCylinder = 
+    #gpublackCylinder = es.GPUShape().initBuffers()
+    #pipeline.setupVAO(gpublackCylinder)
+    #gpublackCylinder.fillBuffers(blackCylinder.vertices, blackCylinder.indices. GL_STATIC_DRAW)
+
+    # Cuerpo del barco
+    cuerpo = sg.SceneGraphNode("cuerpo")
+    cuerpo.transform = tr.scale(2, 1, 1)
+    cuerpo.childs += [gpuBrownCube]
+
+    # Proa y popa
+    proa = sg.SceneGraphNode("proa")
+    proa.transform = tr.matmul([
+        tr.translate(1, 0.5, 0), 
+        tr.rotationY(np.pi/2)
+        ])
+    proa.childs += [gpuBrownPyramid]
+
+    popa = sg.SceneGraphNode("popa")
+    popa.transform = tr.matmul([
+        tr.translate(-1, 0.5, 0), 
+        tr.rotationY(-np.pi/2)
+        ])
+    popa.childs += [gpuBrownPyramid]
+
+    # Mástil
+    #mastil = sg.SceneGraphNode("mastil")
+    #mastil.transform = tr.matmul([
+    #    tr.translate(0, 1, 0),
+    #    tr.scale(0.2, 3, 0.2)
     #    ])
-    #bottomFace.childs += [gpuGrayTriangle]
+    #mastil.childs += [gpuBrownCylinder]
 
-    #frontFace = sg.SceneGraphNode("frontFace")
-    #frontFace.transform = tr.matmul([
-    #    tr.translate(0, 0, -0.25),
-    #    tr.rotationX(np.pi/6)
+    ## Bandera
+    #bandera = sg.SceneGraphNode("bandera")
+    #bandera.transform = tr.matmul([
+
     #    ])
-    #frontFace.childs += [gpuRedTriangle]
+    #bandera.childs += []
 
-    #rightFace = sg.SceneGraphNode("rightFace")
-    #rightFace.transform = tr.matmul([
-    #     tr.translate(0.25, 0, 0),
-    #     tr.rotationY(np.pi/2.8),
-    #     tr.rotationZ(np.pi/2)
-    #     ])
-    #rightFace.childs += [gpuGreenTriangle]
+    # Uniendo todo
+    barco = sg.SceneGraphNode("barco")
+    barco.transform = tr.uniformScale(0.08)
+    barco.childs += [cuerpo, proa, popa]
 
-    #leftFace = sg.SceneGraphNode("leftFace")
-    ##leftFace.transform = tr.matmul([
-    ##    tr.translate(-0.5, 0, 0),
-    ##    tr.rotationY(-np.pi/3),
-    ##    tr.rotationZ(-np.pi/3)
-    ##    ])
-    #leftFace.childs += [gpuBlueTriangle]
+    barcoVista = sg.SceneGraphNode("barcoVista")
+    barcoVista.childs += [barco]
 
-    # Conectamos las caras con la pirámide
-    pyramid = sg.SceneGraphNode("pyramid")
-    pyramid.childs += [gpuPyramid]
-    #pyramid.childs += [bottomFace]
-    #pyramid.childs += [frontFace]
-    #pyramid.childs += [rightFace]
-    #pyramid.childs += [leftFace]
+    return barcoVista
 
-    return pyramid
+def createEnvironment(pipeline):
+    # Figuras a memoria
+    blueQuad = createBlueQuad()
+    gpuBlueQuad = es.GPUShape().initBuffers()
+    pipeline.setupVAO(gpuBlueQuad)
+    gpuBlueQuad.fillBuffers(blueQuad.vertices, blueQuad.indices, GL_STATIC_DRAW)
+
+    # Mar
+    mar = sg.SceneGraphNode("mar")
+    mar.childs += [gpuBlueQuad]
+
+    # Isla
+    #isla = sg.SceneGraphNode("isla")
+    #isla.childs 
+
+    # Ambiente
+    ambiente = sg.SceneGraphNode("ambiente")
+    ambiente.childs += [mar]
+
+    return ambiente
+
+def createScene(pipeline):
+    barcoTras = sg.SceneGraphNode("barcoTras")
+    barcoTras.transform = tr.translate(-0.8, 0, 0.8)
+    barcoTras.childs += [createBoat(pipeline)]
+
+    escena = sg.SceneGraphNode("escena")
+    escena.childs += [createEnvironment(pipeline), barcoTras]
+
+    return escena
+
 
 if __name__ == "__main__":
 
-    # Inicializmos glfw
+    # Inicializamos glfw
     if not glfw.init():
         glfw.set_window_should_close(window, True)
 
     width = 800
     height = 800
-    title = "Pyramid with perspective graph test"
+    title = ""
     window = glfw.create_window(width, height, title, None, None)
 
     if not window:
@@ -148,8 +203,8 @@ if __name__ == "__main__":
     # Como trabajamos en 3D activamos la detección de profundidad
     glEnable(GL_DEPTH_TEST)
 
-    # Creamos las figuras en memoria
-    pyramidNode = createPyramid(pipeline)
+    # Creamos el grafo de escena
+    sceneNode = createScene(pipeline)
 
     # Seteamos proyección y vista
     projection = tr.perspective(45, float(width) / float(height), 0.1, 100)
@@ -162,6 +217,27 @@ if __name__ == "__main__":
 
     theta = 0
 
+    # Leemos vértices y generamos la spline
+    with open(sys.argv[1], "r") as f:
+        lines = f.read().splitlines()
+
+    vertices = []
+
+    for line in lines:
+        line = line.replace(",", "")
+        vert = [float(x) for x in line.split()]
+        vertices += [vert]
+
+    # 900 fps 
+    trayectoria = catrom.getSpline(vertices, 300)
+
+    numVertices = len(trayectoria)
+    index = 0
+    x0, y0 = trayectoria[0][0], trayectoria[0][1]
+
+    traslatedBoatNode = sg.findNode(sceneNode, "barcoTras")
+    traslatedBoatNode.transform = tr.translate(trayectoria[0][0], 0, trayectoria[0][1])
+
     while not glfw.window_should_close(window):
 
         # Esperamos botones
@@ -170,12 +246,16 @@ if __name__ == "__main__":
         # Limpiamos buffers de color y profunidad
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
+        if (controller.fillPolygon):
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
         
         # Hacemos que la pirámide rota constantemente 
         # si la rotación está activada
         if controller.rotation:
             theta += 0.005
-            pyramidNode.transform = tr.rotationY(theta)
+            sceneNode.transform = tr.rotationY(theta)
 
         if controller.view == 1:
             view = tr.lookAt(
@@ -184,6 +264,7 @@ if __name__ == "__main__":
                 np.array([0, 0, 1])
                 )
             glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+
         else:
             view = tr.lookAt(
                 np.array([5, 5, 0]),
@@ -195,13 +276,31 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
         pipeline.drawCall(gpuAxis, GL_LINES)
 
+        # Movimiento del barco a lo largo de la spline
+        x, y = trayectoria[index][0], trayectoria[index][1]
+        boatTrayectoryNode = sg.findNode(sceneNode, "barcoTras")
+        boatTrayectoryNode.transform = tr.translate(x, 0, y)
+
+        # Modificar hacia dónde mira el barco
+        x1, y1 = x-x0, y-y0
+        boatFacingNode = sg.findNode(sceneNode, "barcoVista")
+        cosTheta = np.arccos(x1/np.hypot(x1,y1))
+        theta = -cosTheta if cosTheta < np.pi/2 else cosTheta - np.pi
+        boatFacingNode.transform = tr.rotationY(theta)
+        x0, y0 = x, y
+
         # Dibujamos la pirámide
-        sg.drawSceneGraphNode(pyramidNode, pipeline, "model")
+        sg.drawSceneGraphNode(sceneNode, pipeline, "model")
 
         glfw.swap_buffers(window)
 
+        if index == numVertices - 1:
+            index = 0
+        else:
+            index += 1
+
     # Limpiamos memoria de la GPU
-    pyramidNode.clear()
+    sceneNode.clear()
 
     glfw.terminate()
 
