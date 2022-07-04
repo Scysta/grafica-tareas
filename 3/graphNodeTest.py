@@ -8,7 +8,7 @@ from grafica import basic_shapes as bs
 from grafica import easy_shaders as es
 from grafica import transformations as tr
 from grafica import scene_graph as sg
-import catrom
+from lib import catrom
 
 class Controller():
     def __init__(self):
@@ -27,17 +27,23 @@ def on_key(window, key, scancode, action, mods):
     if key == glfw.KEY_R:
         controller.rotation = not controller.rotation
 
-    elif key == glfw.KEY_Z:
+    elif key == glfw.KEY_1:
         controller.view = 1
 
-    elif key == glfw.KEY_X:
+    elif key == glfw.KEY_2:
         controller.view = 2
 
-    elif key == glfw.KEY_Q:
-        glfw.set_window_should_close(window, True)
+    elif key == glfw.KEY_2:
+        controller.view = 3
+
+    elif key == glfw.KEY_3:
+        controller.view = 4
 
     elif key == glfw.KEY_SPACE:
         controller.fillPolygon = not controller.fillPolygon
+
+    elif key == glfw.KEY_Q:
+        glfw.set_window_should_close(window, True)
 
     else: 
         print("Unknown key")
@@ -206,16 +212,14 @@ if __name__ == "__main__":
     # Creamos el grafo de escena
     sceneNode = createScene(pipeline)
 
-    # Seteamos proyección y vista
-    projection = tr.perspective(45, float(width) / float(height), 0.1, 100)
+    # Seteamos proyección 
+    projection = tr.perspective(90, float(width) / float(height), 0.1, 100)
     glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "projection"), 1, GL_TRUE, projection)
 
     cpuAxis = bs.createAxis(7)
     gpuAxis = es.GPUShape().initBuffers()
     pipeline.setupVAO(gpuAxis)
     gpuAxis.fillBuffers(cpuAxis.vertices, cpuAxis.indices, GL_STATIC_DRAW)
-
-    theta = 0
 
     # Leemos vértices y generamos la spline
     with open(sys.argv[1], "r") as f:
@@ -229,7 +233,7 @@ if __name__ == "__main__":
         vertices += [vert]
 
     # 900 fps 
-    trayectoria = catrom.getSpline(vertices, 300)
+    trayectoria = catrom.getSplineFixed(vertices, 100)
 
     numVertices = len(trayectoria)
     index = 0
@@ -250,28 +254,6 @@ if __name__ == "__main__":
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-        
-        # Hacemos que la pirámide rota constantemente 
-        # si la rotación está activada
-        if controller.rotation:
-            theta += 0.005
-            sceneNode.transform = tr.rotationY(theta)
-
-        if controller.view == 1:
-            view = tr.lookAt(
-                np.array([5, 5, 10]),
-                np.array([0, 0, 0]),
-                np.array([0, 0, 1])
-                )
-            glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
-
-        else:
-            view = tr.lookAt(
-                np.array([5, 5, 0]),
-                np.array([0, 0, 0]),
-                np.array([0, 1, 0])
-                )
-            glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
 
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
         pipeline.drawCall(gpuAxis, GL_LINES)
@@ -283,17 +265,40 @@ if __name__ == "__main__":
 
         # Modificar hacia dónde mira el barco
         x1, y1 = x-x0, y-y0
+        theta = np.arctan2(x1, y1) + np.pi/2
         boatFacingNode = sg.findNode(sceneNode, "barcoVista")
-        cosTheta = np.arccos(x1/np.hypot(x1,y1))
-        theta = -cosTheta if cosTheta < np.pi/2 else cosTheta - np.pi
         boatFacingNode.transform = tr.rotationY(theta)
         x0, y0 = x, y
 
-        # Dibujamos la pirámide
+        # 4 distintas cámaras 
+        match controller.view:
+            case 1:
+                view = tr.lookAt(
+                    np.array([x, 0.1, y]),
+                    np.array([x1, 0.1, y1]),
+                    np.array([0, 1, 0])
+                    )
+                glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+
+            case 2:
+                view = tr.lookAt(
+                    np.array([-2, 3, -3]),
+                    np.array([0, 0, 0]),
+                    np.array([0, 1, 0])
+                    )
+                glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+
+            #case 3:
+
+
+            #case 4:
+
+        # Dibujamos la escena
         sg.drawSceneGraphNode(sceneNode, pipeline, "model")
 
         glfw.swap_buffers(window)
 
+        # Esto solo hace que el movimiento del barco esté en loop
         if index == numVertices - 1:
             index = 0
         else:
