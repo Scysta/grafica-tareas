@@ -17,6 +17,8 @@ class Controller():
         self.rotation = False
         self.view = 2
         self.fillPolygon = True
+        self.viewSpline = True
+        self.viewAxis = True
 
 
 controller = Controller()
@@ -44,7 +46,10 @@ def on_key(window, key, scancode, action, mods):
         controller.view = 4
 
     elif key == glfw.KEY_SPACE:
-        controller.fillPolygon = not controller.fillPolygon
+        controller.viewSpline = not controller.viewSpline
+
+    elif key == glfw.KEY_A:
+        controller.viewAxis = not controller.viewAxis
 
     elif key == glfw.KEY_Q:
         glfw.set_window_should_close(window, True)
@@ -226,11 +231,8 @@ if __name__ == "__main__":
     # Conectamos on_key a la ventana
     glfw.set_key_callback(window, on_key)
 
-    # Elegimos el shader y le decimos a OpenGL que lo use
-    pipeline = ls.SimplePhongShaderProgram()
-    glUseProgram(pipeline.shaderProgram)
-
-    # Lighting shaders
+    # Elegimos dos shaders, uno simple para la spline y uno de luces para los objetos 
+    simplePipeline = es.SimpleModelViewProjectionShaderProgram()
     lightingPipeline = ls.SimplePhongShaderProgram()
 
     # Color del background
@@ -240,15 +242,14 @@ if __name__ == "__main__":
     glEnable(GL_DEPTH_TEST)
 
     # Creamos el grafo de escena
-    sceneNode = createScene(pipeline)
+    sceneNode = createScene(lightingPipeline)
 
     # Seteamos proyección
     projection = tr.perspective(90, float(width) / float(height), 0.1, 100)
-    glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "projection"), 1, GL_TRUE, projection)
 
     cpuAxis = bs.createAxis(7)
     gpuAxis = es.GPUShape().initBuffers()
-    pipeline.setupVAO(gpuAxis)
+    simplePipeline.setupVAO(gpuAxis)
     gpuAxis.fillBuffers(cpuAxis.vertices, cpuAxis.indices, GL_STATIC_DRAW)
 
     # Leemos vértices y generamos la spline
@@ -262,7 +263,7 @@ if __name__ == "__main__":
         vert = [float(x) for x in line.split()]
         vertices += [vert]
 
-    # 900 fps
+    # 130 fps
     trayectoria = catrom.getSplineFixed(vertices, 130)
 
     numVertices = len(trayectoria)
@@ -271,6 +272,20 @@ if __name__ == "__main__":
 
     traslatedBoatNode = sg.findNode(sceneNode, "barcoTras")
     traslatedBoatNode.transform = tr.translate(x0, 0, y0)
+
+    # Attempt to draw the spline in red
+    spline = bs.Shape([x0, 0, y0, 1, 0, 0], [])
+    indices = [1, 2]
+    for coord in trayectoria:
+        spline.vertices += [coord[0], 0, coord[1], 1, 0, 0]
+        spline.indices += indices
+        indices[0] += 1
+        indices[1] += 1
+    # Por alguna razón el último punto de la trayectoria es el (0, 0)
+    spline.indices.pop(-1)
+    spline.indices.pop(-1)
+
+    gpuSpline = createGPUShape(simplePipeline, spline)
 
     while not glfw.window_should_close(window):
 
@@ -284,9 +299,6 @@ if __name__ == "__main__":
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-
-        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
-        pipeline.drawCall(gpuAxis, GL_LINES)
 
         # Movimiento del barco a lo largo de la spline
         x, y = trayectoria[index][0], trayectoria[index][1]
@@ -305,10 +317,11 @@ if __name__ == "__main__":
             case 1:
                 view = tr.lookAt(
                     np.array([x, 0.1, y]),
-                    np.array([x1, 0.1, y1]),
+                    np.array([x + x1, 0.1, y + y1]),
                     np.array([0, 1, 0])
                 )
                 viewPos = np.array([x, 0.1, y])
+
             case 2:
                 view = tr.lookAt(
                     np.array([-1, 1, -2]),
@@ -320,7 +333,23 @@ if __name__ == "__main__":
 
             #case 4:
 
-        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+        glUseProgram(simplePipeline.shaderProgram)
+
+        glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
+        glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+        glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "projection"), 1, GL_TRUE, projection)
+        if controller.viewAxis:
+            simplePipeline.drawCall(gpuAxis, GL_LINES)
+        if controller.viewSpline:
+            simplePipeline.drawCall(gpuSpline, GL_LINES) 
+
+
+
+        glUseProgram(lightingPipeline.shaderProgram)
+
+        glUniformMatrix4fv(glGetUniformLocation(lightingPipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
+        glUniformMatrix4fv(glGetUniformLocation(lightingPipeline.shaderProgram, "view"), 1, GL_TRUE, view)
+        glUniformMatrix4fv(glGetUniformLocation(lightingPipeline.shaderProgram, "projection"), 1, GL_TRUE, projection)
 
         # Lighting parameters
 
@@ -343,7 +372,7 @@ if __name__ == "__main__":
         glUniform1f(glGetUniformLocation(lightingPipeline.shaderProgram, "quadraticAttenuation"), 0.01)
 
         # Dibujamos la escena
-        sg.drawSceneGraphNode(sceneNode, pipeline, "model")
+        sg.drawSceneGraphNode(sceneNode, lightingPipeline, "model")
 
         glfw.swap_buffers(window)
 
