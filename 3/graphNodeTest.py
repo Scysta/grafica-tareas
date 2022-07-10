@@ -6,7 +6,6 @@ from lib.grafica import scene_graph as sg
 from lib.grafica import lighting_shaders as ls
 from lib import catrom
 from OpenGL.GL import *
-import OpenGL.GL.shaders
 import numpy as np
 import sys, os.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -119,20 +118,47 @@ def createBlueQuad():
     return bs.Shape(vertices, indices)
 
 
+# res es de hecho el número de paralelepípedos con los que se 
+# crea el cilindro (de resolución)
+def createMast(pipeline, res):
+    color = [42 / 255, 25 / 255, 17 / 255]
+    rate = 180 / res
+    mastil = sg.SceneGraphNode("mastil")
+    for i in range(res):
+        name = "quad" + str(i)
+        brownCube = bs.createColorNormalsCube(*color)
+        gpuBrownCube = createGPUShape(pipeline, brownCube)
+        brownCubeNode = sg.SceneGraphNode(name)
+        brownCubeNode.transform = tr.matmul([
+            tr.rotationY(rate * i)
+        ])
+        brownCubeNode.childs += [gpuBrownCube]
+        mastil.childs += [brownCubeNode]
+    return mastil
+
+
 def createBoat(pipeline):
-    color = [139 / 255, 69 / 255, 19 / 255]
+    brown = [139 / 255, 69 / 255, 19 / 255]
+    skyBlue = [92 / 255, 208 / 255, 249 / 255]
+    pink = [248 / 255, 168 / 255, 181 / 255]
 
     # Figuras en memoria
-    brownCube = bs.createColorNormalsCube(*color)
+    brownCube = bs.createColorNormalsCube(*brown)
     gpuBrownCube = createGPUShape(pipeline, brownCube)
 
-    brownPyramid = createColorPyramid(color)
+    brownPyramid = createColorPyramid(brown)
     gpuBrownPyramid = createGPUShape(pipeline, brownPyramid)
 
-    #blackCylinder =
-    #gpublackCylinder = es.GPUShape().initBuffers()
-    #pipeline.setupVAO(gpublackCylinder)
-    #gpublackCylinder.fillBuffers(blackCylinder.vertices, blackCylinder.indices. GL_STATIC_DRAW)
+    skyBlueCube = bs.createColorNormalsCube(*skyBlue)
+    gpuSkyBlueCube1 = createGPUShape(pipeline, skyBlueCube)
+    gpuSkyBlueCube2 = createGPUShape(pipeline, skyBlueCube)
+
+    pinkCube = bs.createColorNormalsCube(*pink)
+    gpuPinkCube1 = createGPUShape(pipeline, pinkCube)
+    gpuPinkCube2 = createGPUShape(pipeline, pinkCube)
+
+    whiteCube = bs.createColorNormalsCube(1, 1, 1)
+    gpuWhiteCube = createGPUShape(pipeline, whiteCube)
 
     # Cuerpo del barco
     cuerpo = sg.SceneGraphNode("cuerpo")
@@ -155,24 +181,60 @@ def createBoat(pipeline):
     popa.childs += [gpuBrownPyramid]
 
     # Mástil
-    #mastil = sg.SceneGraphNode("mastil")
-    #mastil.transform = tr.matmul([
-    #    tr.translate(0, 1, 0),
-    #    tr.scale(0.2, 3, 0.2)
-    #    ])
-    #mastil.childs += [gpuBrownCylinder]
+    mastil = createMast(pipeline, 100)
+    mastil.transform = tr.matmul([
+        tr.translate(0, 1, 0),
+        tr.scale(0.1, 1.8, 0.1)
+    ])
 
-    ## Bandera
-    #bandera = sg.SceneGraphNode("bandera")
-    #bandera.transform = tr.matmul([
+    # Bandera
+    # Desde arriba hacia abajo
+    scaleMatrix = tr.scale(2, 0.2, 0.1)
+    skyBlueStripe1 = sg.SceneGraphNode("skyBlueStripe1")
+    skyBlueStripe1.transform = tr.matmul([
+        scaleMatrix
+    ])
+    skyBlueStripe1.childs += [gpuSkyBlueCube1]
 
-    #    ])
-    #bandera.childs += []
+    pinkStripe1 = sg.SceneGraphNode("pinkStripe1")
+    pinkStripe1.transform = tr.matmul([
+        tr.translate(0, -0.2, 0),
+        scaleMatrix
+    ])
+    pinkStripe1.childs += [gpuPinkCube1]
+
+    whiteStripe = sg.SceneGraphNode("whiteStripe")
+    whiteStripe.transform = tr.matmul([
+        tr.translate(0, -0.4, 0),
+        scaleMatrix
+    ])
+    whiteStripe.childs += [gpuWhiteCube]
+
+    pinkStripe2 = sg.SceneGraphNode("pinkStripe2")
+    pinkStripe2.transform = tr.matmul([
+        tr.translate(0, -0.6, 0),
+        scaleMatrix
+    ])
+    pinkStripe2.childs += [gpuPinkCube2]
+    
+    skyBlueStripe2 = sg.SceneGraphNode("skyBlueStripe2")
+    skyBlueStripe2.transform = tr.matmul([
+        tr.translate(0, -0.8, 0),
+        scaleMatrix
+    ])
+    skyBlueStripe2.childs += [gpuSkyBlueCube2]
+
+    bandera = sg.SceneGraphNode("bandera")
+    bandera.transform = tr.matmul([
+        tr.translate(0, 2, 0),
+        tr.uniformScale(0.8)
+    ])
+    bandera.childs += [skyBlueStripe1, pinkStripe1, whiteStripe, pinkStripe2, skyBlueStripe2]
 
     # Uniendo todo
     barco = sg.SceneGraphNode("barco")
-    barco.transform = tr.uniformScale(0.08)
-    barco.childs += [cuerpo, proa, popa]
+    barco.transform = tr.uniformScale(0.04)
+    barco.childs += [cuerpo, proa, popa, mastil, bandera]
 
     barcoVista = sg.SceneGraphNode("barcoVista")
     barcoVista.childs += [barco]
@@ -217,8 +279,8 @@ if __name__ == "__main__":
     if not glfw.init():
         glfw.set_window_should_close(window, True)
 
-    width = 800
-    height = 800
+    width = 1366
+    height = 768
     title = ""
     window = glfw.create_window(width, height, title, None, None)
 
@@ -231,7 +293,7 @@ if __name__ == "__main__":
     # Conectamos on_key a la ventana
     glfw.set_key_callback(window, on_key)
 
-    # Elegimos dos shaders, uno simple para la spline y uno de luces para los objetos 
+    # Elegimos dos shaders, uno simple para la spline y uno de luces para los objetos
     simplePipeline = es.SimpleModelViewProjectionShaderProgram()
     lightingPipeline = ls.SimplePhongShaderProgram()
 
@@ -245,7 +307,7 @@ if __name__ == "__main__":
     sceneNode = createScene(lightingPipeline)
 
     # Seteamos proyección
-    projection = tr.perspective(90, float(width) / float(height), 0.1, 100)
+    projection = tr.perspective(30, float(width) / float(height), 0.1, 100)
 
     cpuAxis = bs.createAxis(7)
     gpuAxis = es.GPUShape().initBuffers()
@@ -273,7 +335,7 @@ if __name__ == "__main__":
     traslatedBoatNode = sg.findNode(sceneNode, "barcoTras")
     traslatedBoatNode.transform = tr.translate(x0, 0, y0)
 
-    # Attempt to draw the spline in red
+    # Dibujo de la spline en rojo
     spline = bs.Shape([x0, 0, y0, 1, 0, 0], [])
     indices = [1, 2]
     for coord in trayectoria:
@@ -316,11 +378,11 @@ if __name__ == "__main__":
         match controller.view:
             case 1:
                 view = tr.lookAt(
-                    np.array([x, 0.1, y]),
-                    np.array([x + x1, 0.1, y + y1]),
+                    np.array([x, 0.05, y]),
+                    np.array([x + x1, 0.05, y + y1]),
                     np.array([0, 1, 0])
                 )
-                viewPos = np.array([x, 0.1, y])
+                viewPos = np.array([x, 0.05, y])
 
             case 2:
                 view = tr.lookAt(
@@ -341,9 +403,7 @@ if __name__ == "__main__":
         if controller.viewAxis:
             simplePipeline.drawCall(gpuAxis, GL_LINES)
         if controller.viewSpline:
-            simplePipeline.drawCall(gpuSpline, GL_LINES) 
-
-
+            simplePipeline.drawCall(gpuSpline, GL_LINES)
 
         glUseProgram(lightingPipeline.shaderProgram)
 
@@ -357,7 +417,6 @@ if __name__ == "__main__":
         glUniform3f(glGetUniformLocation(lightingPipeline.shaderProgram, "Ld"), 1.0, 1.0, 1.0)
         glUniform3f(glGetUniformLocation(lightingPipeline.shaderProgram, "Ls"), 1.0, 1.0, 1.0)
 
-        # Object is barely visible at only ambient. Diffuse behavior is slightly red. Sparkles are white
         glUniform3f(glGetUniformLocation(lightingPipeline.shaderProgram, "Ka"), 0.5, 0.5, 0.5)
         glUniform3f(glGetUniformLocation(lightingPipeline.shaderProgram, "Kd"), 0.2, 0.5, 0.5)
         glUniform3f(glGetUniformLocation(lightingPipeline.shaderProgram, "Ks"), 1.0, 1.0, 1.0)
