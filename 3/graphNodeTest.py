@@ -13,11 +13,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class Controller():
     def __init__(self):
-        self.rotation = False
-        self.view = 2
+        self.view = 1
         self.fillPolygon = True
         self.viewSpline = True
-        self.viewAxis = True
+        self.viewAxis = False
+        self.pause = False
 
 
 controller = Controller()
@@ -29,19 +29,16 @@ def on_key(window, key, scancode, action, mods):
 
     global controller
 
-    if key == glfw.KEY_R:
-        controller.rotation = not controller.rotation
-
-    elif key == glfw.KEY_1:
+    if key == glfw.KEY_1:
         controller.view = 1
 
     elif key == glfw.KEY_2:
         controller.view = 2
 
-    elif key == glfw.KEY_2:
+    elif key == glfw.KEY_3:
         controller.view = 3
 
-    elif key == glfw.KEY_3:
+    elif key == glfw.KEY_4:
         controller.view = 4
 
     elif key == glfw.KEY_SPACE:
@@ -49,6 +46,9 @@ def on_key(window, key, scancode, action, mods):
 
     elif key == glfw.KEY_A:
         controller.viewAxis = not controller.viewAxis
+
+    elif key == glfw.KEY_P:
+        controller.pause = not controller.pause
 
     elif key == glfw.KEY_Q:
         glfw.set_window_should_close(window, True)
@@ -103,7 +103,7 @@ def createColorPyramid(color):
 
 def createBlueQuad():
     color1 = [135 / 255, 206 / 255, 235 / 255]
-    color2 = [0,       191/255, 1      ]
+    color2 = [0,       191 / 255, 1      ]
     vertices = [
         -1.0,  0.0, -1.0, *color1, 0, 1, 0,
          1.0,  0.0, -1.0, *color1, 0, 1, 0,
@@ -118,6 +118,26 @@ def createBlueQuad():
     return bs.Shape(vertices, indices)
 
 
+def createLightBrownQuad():
+    lightBrown = [205 / 255, 182 / 255, 142 / 255]
+    vertices = [
+        -1.0,  0.0, -1.0, *lightBrown, 0, 1, 0,
+         1.0,  0.0, -1.0, *lightBrown, 0, 1, 0,
+         1.0,  0.0,  1.0, *lightBrown, 0, 1, 0,
+        -1.0,  0.0,  1.0, *lightBrown, 0, 1, 0
+    ]
+
+    indices = [
+        0, 1, 2, 2, 3, 0
+    ]
+
+    return bs.Shape(vertices, indices)
+
+
+#def createSlantedCube(color):
+#    vertices = [
+#        -1.0, 0.0, -1.0, 
+
 # res es de hecho el número de paralelepípedos con los que se 
 # crea el cilindro (de resolución)
 def createMast(pipeline, res):
@@ -125,7 +145,7 @@ def createMast(pipeline, res):
     rate = 180 / res
     mastil = sg.SceneGraphNode("mastil")
     for i in range(res):
-        name = "quad" + str(i)
+        name = "cube" + str(i)
         brownCube = bs.createColorNormalsCube(*color)
         gpuBrownCube = createGPUShape(pipeline, brownCube)
         brownCubeNode = sg.SceneGraphNode(name)
@@ -189,7 +209,7 @@ def createBoat(pipeline):
 
     # Bandera
     # Desde arriba hacia abajo
-    scaleMatrix = tr.scale(2, 0.2, 0.1)
+    scaleMatrix = tr.scale(1.5, 0.2, 0.05)
     skyBlueStripe1 = sg.SceneGraphNode("skyBlueStripe1")
     skyBlueStripe1.transform = tr.matmul([
         scaleMatrix
@@ -216,7 +236,7 @@ def createBoat(pipeline):
         scaleMatrix
     ])
     pinkStripe2.childs += [gpuPinkCube2]
-    
+
     skyBlueStripe2 = sg.SceneGraphNode("skyBlueStripe2")
     skyBlueStripe2.transform = tr.matmul([
         tr.translate(0, -0.8, 0),
@@ -243,21 +263,29 @@ def createBoat(pipeline):
 
 
 def createEnvironment(pipeline):
+    sandColor = [238 / 255, 179 / 255, 149 / 255]
     # Figuras a memoria
     blueQuad = createBlueQuad()
     gpuBlueQuad = createGPUShape(pipeline, blueQuad)
+
+    lightBrownQuad = createLightBrownQuad()
+    gpuLightBrownQuad = createGPUShape(pipeline, lightBrownQuad)
 
     # Mar
     mar = sg.SceneGraphNode("mar")
     mar.childs += [gpuBlueQuad]
 
     # Isla
-    #isla = sg.SceneGraphNode("isla")
-    #isla.childs
+    isla = sg.SceneGraphNode("isla")
+    isla.transform = tr.matmul([
+        tr.translate(0, 0.001, 0),
+        tr.uniformScale(0.5)
+    ])
+    isla.childs += [gpuLightBrownQuad]
 
     # Ambiente
     ambiente = sg.SceneGraphNode("ambiente")
-    ambiente.childs += [mar]
+    ambiente.childs += [mar, isla]
 
     return ambiente
 
@@ -307,7 +335,7 @@ if __name__ == "__main__":
     sceneNode = createScene(lightingPipeline)
 
     # Seteamos proyección
-    projection = tr.perspective(30, float(width) / float(height), 0.1, 100)
+    projection = tr.perspective(90, float(width) / float(height), 0.01, 100)
 
     cpuAxis = bs.createAxis(7)
     gpuAxis = es.GPUShape().initBuffers()
@@ -362,42 +390,56 @@ if __name__ == "__main__":
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
-        # Movimiento del barco a lo largo de la spline
-        x, y = trayectoria[index][0], trayectoria[index][1]
-        boatTrayectoryNode = sg.findNode(sceneNode, "barcoTras")
-        boatTrayectoryNode.transform = tr.translate(x, 0, y)
+        if not controller.pause:
+            # Movimiento del barco a lo largo de la spline
+            x, y = trayectoria[index][0], trayectoria[index][1]
+            boatTrayectoryNode = sg.findNode(sceneNode, "barcoTras")
+            boatTrayectoryNode.transform = tr.translate(x, 0, y)
 
-        # Modificar hacia dónde mira el barco
-        x1, y1 = x - x0, y - y0
-        theta = np.arctan2(x1, y1) + np.pi / 2
-        boatFacingNode = sg.findNode(sceneNode, "barcoVista")
-        boatFacingNode.transform = tr.rotationY(theta)
-        x0, y0 = x, y
+            # Modificar hacia dónde mira el barco
+            x1, y1 = x - x0, y - y0
+            theta = np.arctan2(x1, y1) + np.pi / 2
+            boatFacingNode = sg.findNode(sceneNode, "barcoVista")
+            boatFacingNode.transform = tr.rotationY(theta)
+            x0, y0 = x, y
 
         # 4 distintas cámaras
         match controller.view:
             case 1:
                 view = tr.lookAt(
-                    np.array([x, 0.05, y]),
+                    np.array([-0.5, 0.5, -1]),
+                    np.array([0, 0, 0]),
+                    np.array([0, 1, 0])
+                )
+                viewPos = np.array([-1, 1, -2])
+
+            case 2:
+                view = tr.lookAt(
+                    np.array([x - 0.05, 0.05, y - 0.05]),
                     np.array([x + x1, 0.05, y + y1]),
                     np.array([0, 1, 0])
                 )
                 viewPos = np.array([x, 0.05, y])
 
-            case 2:
+            case 3:
                 view = tr.lookAt(
-                    np.array([-1, 1, -2]),
-                    np.array([0, 0, 0]),
+                    np.array([0, 1, 0]),
+                    np.array([x, 0.1, y]),
                     np.array([0, 1, 0])
                 )
-                viewPos = np.array([-1, 1, -2])
-            #case 3:
+                viewPos = np.array([0, 1, 0])
 
-            #case 4:
+            case 4:
+                view = tr.lookAt(
+                    np.array([1.5, 0.5, 0.1 ]),
+                    np.array([0, 0.1, 0]),
+                    np.array([0, 1, 0])
+                )
+                viewPos = np.array([0.1, 0.3, 1])
 
         glUseProgram(simplePipeline.shaderProgram)
 
-        glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "model"), 1, GL_TRUE, tr.identity())
+        glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "model"), 1, GL_TRUE, tr.translate(0, 0.002, 0))
         glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "view"), 1, GL_TRUE, view)
         glUniformMatrix4fv(glGetUniformLocation(simplePipeline.shaderProgram, "projection"), 1, GL_TRUE, projection)
         if controller.viewAxis:
@@ -436,10 +478,11 @@ if __name__ == "__main__":
         glfw.swap_buffers(window)
 
         # Esto solo hace que el movimiento del barco esté en loop
-        if index == numVertices - 1:
-            index = 0
-        else:
-            index += 1
+        if not controller.pause:
+            if index == numVertices - 1:
+                index = 0
+            else:
+                index += 1
 
     # Limpiamos memoria de la GPU
     sceneNode.clear()
