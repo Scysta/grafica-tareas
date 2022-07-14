@@ -1,4 +1,6 @@
 import glfw
+import numpy as np
+import random
 from OpenGL.GL import *
 from grafica.gpu_shape import GPUShape
 import grafica.basic_shapes as bs
@@ -10,6 +12,7 @@ import grafica.transformations as tr
 # la aplicación
 class Controller:
     def __init__(self):
+        self.fillPolygon = True
         self.fly = False
         self.monkey_pos = 0
         self.points = 0
@@ -29,6 +32,9 @@ def on_key(window, key, scancode, action, mods):
     elif action == glfw.RELEASE and key == glfw.KEY_UP:
         controller.fly = False
 
+    elif key == glfw.KEY_SPACE and action == glfw.PRESS:
+        controller.fillPolygon = not controller.fillPolygon
+
     elif key == glfw.KEY_Q:
         glfw.set_window_should_close(window, True)
 
@@ -44,31 +50,56 @@ def createGpuShape(pipeline, shape):
 
 
 class Pillar:
-    def __init__(self, pipeline, position=0):
+    def __init__(self, pipeline, position=0, height=0, reversed=False):
         shape = bs.createTextureQuad(1, 1)
         self.pipeline = pipeline
         self.position = position
-        self.hitbox = ''
+        self.height = height
         self.gpuShape = createGpuShape(self.pipeline, shape)
+        self.texture = "assets/pipe.png"
+        self.reversed = reversed
 
-    def reset(self):
-        self.position = 2
+    def reset(self, banana):
+        self.position = banana.position + 0.01
+        if self.reversed:
+            self.height = banana.height + 0.6
+        else:
+            self.height = banana.height - 0.6
+
+    def textureSetup(self):
+        self.gpuShape.texture = es.textureSimpleSetup(self.texture,
+            GL_CLAMP_TO_EDGE, GL_REPEAT, GL_NEAREST, GL_NEAREST)
 
     def draw(self):
-        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, tr.matmul([]))
+        self.position -= 0.005 * 0.7
+        if self.reversed:
+            M = tr.matmul([
+                tr.translate(self.position, self.height, 0),
+                tr.scale(0.2, 0.75, 0),
+                tr.rotationZ(np.pi)
+            ])
+
+        else:
+            M = tr.matmul([
+                tr.translate(self.position, self.height, 0),
+                tr.scale(0.2, 0.75, 0)
+            ])
+
+        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, M)
         self.pipeline.drawCall(self.gpuShape)
 
 
 class Banana:
-    def __init__(self, pipeline, position=0):
+    def __init__(self, pipeline, position=0, height=0):
         shape = bs.createTextureQuad(1, 1)
         self.pipeline = pipeline
         self.position = position
+        self.height = height
         self.gpuShape = createGpuShape(self.pipeline, shape)
         self.texture = "assets/banana.png"
 
     def reset(self):
-        self.position = 2
+        self.position = 1.05
 
     def bananaGet(self):
         self.reset()
@@ -78,14 +109,21 @@ class Banana:
         self.gpuShape.texture = es.textureSimpleSetup(self.texture,
             GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
+    def randomHeight(self):
+        r = random.randint(-50, 50) / 70
+        self.height = r
+
     def draw(self):
+        self.position -= 0.005 * 0.7
         M = tr.matmul([
-            tr.translate(self.position, 0, 0),
+            tr.translate(self.position, self.height, 0),
             tr.scale(0.09, 0.1, 1)
         ])
         glUniformMatrix4fv(glGetUniformLocation(self.pipeline.shaderProgram, "transform"), 1, GL_TRUE, M)
         self.pipeline.drawCall(self.gpuShape)
 
+
+#def isColliding(controller.monkey_pos, pillar):
 
 # Main loop
 if __name__ == "__main__":
@@ -113,15 +151,23 @@ if __name__ == "__main__":
     pipeline = es.SimpleTextureTransformShaderProgram()
     glUseProgram(pipeline.shaderProgram)
 
-    background1 = bs.createTextureQuad(1000 / width, 1000 / height)
-    gpuBackground1 = createGpuShape(pipeline, background1)
+    background = bs.createTextureQuad(1000 / width, 1000 / height)
+    gpuBackground1 = createGpuShape(pipeline, background)
     gpuBackground1.texture = es.textureSimpleSetup("assets/background.png",
         GL_REPEAT, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
-    background2 = bs.createTextureQuad(1000 / width, 1000 / height)
-    gpuBackground2 = createGpuShape(pipeline, background2)
+    gpuBackground2 = createGpuShape(pipeline, background)
     gpuBackground2.texture = es.textureSimpleSetup("assets/background.png",
         GL_REPEAT, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
+
+    ground = bs.createTextureQuad(3, 1)
+    gpuGround1 = createGpuShape(pipeline, ground)
+    gpuGround1.texture = es.textureSimpleSetup("assets/ground.png",
+        GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST)
+
+    gpuGround2 = createGpuShape(pipeline, ground)
+    gpuGround2.texture = es.textureSimpleSetup("assets/ground.png",
+        GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST)
 
     cloud = bs.createTextureQuad(1, 1)
     gpuCloud = createGpuShape(pipeline, cloud)
@@ -134,12 +180,29 @@ if __name__ == "__main__":
         GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
     bananaSet = []
-    test = 0
-    for i in [0, 1, 2]:
-        banana = Banana(pipeline, test)
+    for i in [0, 1, 2, 3]:
+        banana = Banana(pipeline)
+        banana.position += i * 0.6
+        banana.randomHeight()
         banana.textureSetup()
         bananaSet.append(banana)
-        test += 0.2
+
+    pilarSet = []
+    for i in [0, 1, 2, 3]:
+        pilar = Pillar(pipeline)
+        reversedPilar = Pillar(pipeline, reversed=True)
+
+        pilar.position = bananaSet[i].position + 0.001
+        reversedPilar.position += bananaSet[i].position + 0.001
+
+        pilar.height = bananaSet[i].height - 0.6
+        reversedPilar.height = bananaSet[i].height + 0.6
+
+        pilar.textureSetup()
+        reversedPilar.textureSetup()
+
+        pilarSet.append(pilar)
+        pilarSet.append(reversedPilar)
 
     glClearColor(0.25, 0.25, 0.25, 1.0)
 
@@ -148,7 +211,7 @@ if __name__ == "__main__":
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
     dx = 0
-    dy = 0
+    dx2 = 0
 
     while not glfw.window_should_close(window):
 
@@ -156,6 +219,11 @@ if __name__ == "__main__":
         glfw.poll_events()
 
         glClear(GL_COLOR_BUFFER_BIT)
+
+        if controller.fillPolygon:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
         backgroundTransform1 = tr.matmul([
             tr.translate(-dx, 0, 0),
@@ -168,10 +236,19 @@ if __name__ == "__main__":
 
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, backgroundTransform1)
         pipeline.drawCall(gpuBackground1)
+
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, backgroundTransform2)
         pipeline.drawCall(gpuBackground2)
+
         if controller.fly:
             controller.monkey_pos += 0.016
+
+        for banana in bananaSet:
+            if banana.position <= -1.33:
+                banana.reset()
+                banana.randomHeight()
+                resetBanana = banana
+            banana.draw()
 
         monkeyTransform = tr.matmul([
             tr.translate(-0.5, controller.monkey_pos, 0),
@@ -185,17 +262,40 @@ if __name__ == "__main__":
 
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, monkeyTransform)
         pipeline.drawCall(gpuMonkey)
+
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, cloudTransform)
         pipeline.drawCall(gpuCloud)
 
-        test = 0
-        for banana in bananaSet:
-            banana.draw()
+        for pilar in pilarSet:
+            if pilar.position <= -1.33:
+                pilar.reset(resetBanana)
+            pilar.draw()
+
+        groundTransform1 = tr.matmul([
+            tr.translate(0 - dx2, -0.9, 0),
+            tr.scale(2, 0.2, 1)
+        ])
+
+        groundTransform2 = tr.matmul([
+            tr.translate(2 - dx2, -0.9, 0),
+            tr.scale(2, 0.2, 1)
+        ])
+
+        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, groundTransform1)
+        pipeline.drawCall(gpuGround1)
+
+        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, groundTransform2)
+        pipeline.drawCall(gpuGround2)
 
         if dx >= 2:
             dx = 0
         else:
             dx += 0.005
+
+        if dx2 >= 2:
+            dx2 = 0
+        else:
+            dx2 += 0.005 * 0.7
 
         if controller.monkey_pos <= -1:
             controller.monkey_pos = 1
