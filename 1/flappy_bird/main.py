@@ -43,6 +43,50 @@ def createGpuShape(pipeline, shape):
     return gpuShape
 
 
+class Pillar:
+    def __init__(self, pipeline, position=0):
+        shape = bs.createTextureQuad(1, 1)
+        self.pipeline = pipeline
+        self.position = position
+        self.hitbox = ''
+        self.gpuShape = createGpuShape(self.pipeline, shape)
+
+    def reset(self):
+        self.position = 2
+
+    def draw(self):
+        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, tr.matmul([]))
+        self.pipeline.drawCall(self.gpuShape)
+
+
+class Banana:
+    def __init__(self, pipeline, position=0):
+        shape = bs.createTextureQuad(1, 1)
+        self.pipeline = pipeline
+        self.position = position
+        self.gpuShape = createGpuShape(self.pipeline, shape)
+        self.texture = "assets/banana.png"
+
+    def reset(self):
+        self.position = 2
+
+    def bananaGet(self):
+        self.reset()
+        controller.points += 1
+
+    def textureSetup(self):
+        self.gpuShape.texture = es.textureSimpleSetup(self.texture,
+            GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
+
+    def draw(self):
+        M = tr.matmul([
+            tr.translate(self.position, 0, 0),
+            tr.scale(0.09, 0.1, 1)
+        ])
+        glUniformMatrix4fv(glGetUniformLocation(self.pipeline.shaderProgram, "transform"), 1, GL_TRUE, M)
+        self.pipeline.drawCall(self.gpuShape)
+
+
 # Main loop
 if __name__ == "__main__":
 
@@ -89,16 +133,17 @@ if __name__ == "__main__":
     gpuMonkey.texture = es.textureSimpleSetup("assets/monkey.png",
         GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
-    banana = bs.createTextureQuad(1, 1)
     bananaSet = []
+    test = 0
     for i in [0, 1, 2]:
-        bananaSet.append(createGpuShape(pipeline, banana))
-        bananaSet[i].texture = es.textureSimpleSetup("assets/banana.png",
-            GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
+        banana = Banana(pipeline, test)
+        banana.textureSetup()
+        bananaSet.append(banana)
+        test += 0.2
 
     glClearColor(0.25, 0.25, 0.25, 1.0)
 
-    # Enabling transparencies
+    # Activamos transparencias
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
@@ -142,8 +187,10 @@ if __name__ == "__main__":
         pipeline.drawCall(gpuMonkey)
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, cloudTransform)
         pipeline.drawCall(gpuCloud)
-        glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, tr.scale(0.09, 0.1, 1))
-        pipeline.drawCall(bananaSet[0])
+
+        test = 0
+        for banana in bananaSet:
+            banana.draw()
 
         if dx >= 2:
             dx = 0
@@ -161,6 +208,6 @@ if __name__ == "__main__":
     gpuBackground1.clear()
     gpuBackground2.clear()
     for banana in bananaSet:
-        banana.clear()
+        banana.gpuShape.clear()
 
     glfw.terminate()
