@@ -101,10 +101,6 @@ class Banana:
     def reset(self):
         self.position = 1.05
 
-    def bananaGet(self):
-        self.reset()
-        controller.points += 1
-
     def textureSetup(self):
         self.gpuShape.texture = es.textureSimpleSetup(self.texture,
             GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
@@ -112,6 +108,11 @@ class Banana:
     def randomHeight(self):
         r = random.randint(-50, 50) / 70
         self.height = r
+
+    def bananaGet(self):
+        self.position += 2.4
+        self.randomHeight()
+        controller.points += 1
 
     def draw(self):
         self.position -= 0.005 * 0.7
@@ -123,7 +124,11 @@ class Banana:
         self.pipeline.drawCall(self.gpuShape)
 
 
-#def isColliding(controller.monkey_pos, pillar):
+def bananaCheck(monkey_pos, banana):
+    diff = (-0.5 - banana.position, monkey_pos - banana.height)
+    dist = np.linalg.norm(diff)
+    return dist < 0.07
+
 
 # Main loop
 if __name__ == "__main__":
@@ -136,7 +141,7 @@ if __name__ == "__main__":
     width = 1366
     height = 768
 
-    window = glfw.create_window(width, height, "Flappy bird!", None, None)
+    window = glfw.create_window(width, height, "Flappy monkey!", None, None)
 
     if not window:
         glfw.terminate()
@@ -180,6 +185,7 @@ if __name__ == "__main__":
         GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
     bananaSet = []
+    bananaQueue = []
     for i in [0, 1, 2, 3]:
         banana = Banana(pipeline)
         banana.position += i * 0.6
@@ -201,8 +207,7 @@ if __name__ == "__main__":
         pilar.textureSetup()
         reversedPilar.textureSetup()
 
-        pilarSet.append(pilar)
-        pilarSet.append(reversedPilar)
+        pilarSet.append((pilar, reversedPilar))
 
     glClearColor(0.25, 0.25, 0.25, 1.0)
 
@@ -244,20 +249,22 @@ if __name__ == "__main__":
             controller.monkey_pos += 0.016
 
         for banana in bananaSet:
-            if banana.position <= -1.33:
-                banana.reset()
-                banana.randomHeight()
-                resetBanana = banana
+            if bananaCheck(controller.monkey_pos, banana):
+                banana.bananaGet()
+                bananaSet.pop(0)
+                bananaSet.append(banana)
+                bananaQueue.append(banana)
+                print(controller.points)
             banana.draw()
 
         monkeyTransform = tr.matmul([
             tr.translate(-0.5, controller.monkey_pos, 0),
-            tr.uniformScale(0.2)
+            tr.uniformScale(0.17)
         ])
 
         cloudTransform = tr.matmul([
             tr.translate(-0.5, controller.monkey_pos - 0.1, 0),
-            tr.scale(0.2, 0.15, 1)
+            tr.scale(0.18, 0.13, 1)
         ])
 
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, monkeyTransform)
@@ -267,9 +274,12 @@ if __name__ == "__main__":
         pipeline.drawCall(gpuCloud)
 
         for pilar in pilarSet:
-            if pilar.position <= -1.33:
-                pilar.reset(resetBanana)
-            pilar.draw()
+            if pilar[0].position <= -1.2:
+                pilar[0].reset(bananaQueue[0])
+                pilar[1].reset(bananaQueue[0])
+                bananaQueue.pop(0)
+            pilar[0].draw()
+            pilar[1].draw()
 
         groundTransform1 = tr.matmul([
             tr.translate(0 - dx2, -0.9, 0),
