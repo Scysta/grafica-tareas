@@ -341,9 +341,38 @@ if __name__ == "__main__":
             else:
                 controller.monkey_pos -= 0.008
         else:
+            controller.fly = False
             if glfw.get_key(window, glfw.KEY_R) == glfw.PRESS:
-                #Retry
-                pass
+                # Reset monkey position
+                controller.monkey_pos = 0
+
+                # Reset point counter
+                controller.points = 0
+
+                # Reset banana and pillar position
+                for i in [0, 1, 2, 3]:
+                    banana = bananaSet[i]
+                    banana.position = i * 0.6
+                    banana.randomHeight()
+
+                    pilar = pilarSet[i][0]
+                    reversedPilar = pilarSet[i][1]
+
+                    pilar.position = banana.position + 0.001
+                    reversedPilar.position = banana.position + 0.001
+
+                    pilar.height = banana.height - 0.6
+                    reversedPilar.height = banana.height + 0.6
+
+                    banana.draw(controller.gameOver)
+
+                    pilar.draw(controller.gameOver)
+                    reversedPilar.draw(controller.gameOver)
+
+                bananaQueue.clear()
+
+                controller.gameOver = False
+
         glfw.swap_buffers(window)
 
     gpuMonkey.clear()
