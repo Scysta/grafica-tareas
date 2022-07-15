@@ -6,6 +6,7 @@ from grafica.gpu_shape import GPUShape
 import grafica.basic_shapes as bs
 import grafica.easy_shaders as es
 import grafica.transformations as tr
+import grafica.text_renderer as tx
 
 
 # Clase simple para guardar variables de control en
@@ -180,7 +181,7 @@ if __name__ == "__main__":
 
     # Shaders
     pipeline = es.SimpleTextureTransformShaderProgram()
-    glUseProgram(pipeline.shaderProgram)
+    textPipeline = tx.TextureTextRendererShaderProgram()
 
     background = bs.createTextureQuad(1000 / width, 1000 / height)
     gpuBackground1 = createGpuShape(pipeline, background)
@@ -210,8 +211,10 @@ if __name__ == "__main__":
     gpuMonkey.texture = es.textureSimpleSetup("assets/monkey.png",
         GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
+    # Set banana and pillars position
     bananaSet = []
     bananaQueue = []
+    pilarSet = []
     for i in [0, 1, 2, 3]:
         banana = Banana(pipeline)
         banana.position += i * 0.6
@@ -219,21 +222,30 @@ if __name__ == "__main__":
         banana.textureSetup()
         bananaSet.append(banana)
 
-    pilarSet = []
-    for i in [0, 1, 2, 3]:
         pilar = Pillar(pipeline)
         reversedPilar = Pillar(pipeline, reversed=True)
 
-        pilar.position = bananaSet[i].position + 0.001
-        reversedPilar.position += bananaSet[i].position + 0.001
+        pilar.position = banana.position + 0.001
+        reversedPilar.position = banana.position + 0.001
 
-        pilar.height = bananaSet[i].height - 0.6
-        reversedPilar.height = bananaSet[i].height + 0.6
+        pilar.height = banana.height - 0.6
+        reversedPilar.height = banana.height + 0.6
 
         pilar.textureSetup()
         reversedPilar.textureSetup()
 
         pilarSet.append((pilar, reversedPilar))
+
+    textBitsTexture = tx.generateTextBitsTexture()
+    gpuText3DTexture = tx.toOpenGLTexture(textBitsTexture)
+
+    pointCounterText = str(controller.points)
+    pointCounterShape = tx.textToShape(pointCounterText, 0.1, 0.1)
+    gpuPointCounter = createGpuShape(textPipeline, pointCounterShape)
+    gpuPointCounter.texture = gpuText3DTexture
+    pointCounterTransform = tr.matmul([
+        tr.translate(0, 0.8, 0)
+    ])
 
     glClearColor(0.25, 0.25, 0.25, 1.0)
 
@@ -255,6 +267,9 @@ if __name__ == "__main__":
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+
+
+        glUseProgram(pipeline.shaderProgram)
 
         backgroundTransform1 = tr.matmul([
             tr.translate(-dBackground, 0, 0),
@@ -372,6 +387,16 @@ if __name__ == "__main__":
                 bananaQueue.clear()
 
                 controller.gameOver = False
+
+        # Text setup
+        glUseProgram(textPipeline.shaderProgram)
+        pointCounterText = str(controller.points)
+        pointCounterShape = tx.textToShape(pointCounterText, 0.1, 0.1)
+        gpuPointCounter.fillBuffers(pointCounterShape.vertices, pointCounterShape.indices, GL_STREAM_DRAW)
+        glUniform4f(glGetUniformLocation(textPipeline.shaderProgram, "fontColor"), 1, 1, 1, 1)
+        glUniform4f(glGetUniformLocation(textPipeline.shaderProgram, "backColor"), 0, 0, 0, 0)
+        glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, pointCounterTransform)
+        textPipeline.drawCall(gpuPointCounter)
 
         glfw.swap_buffers(window)
 
