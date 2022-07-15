@@ -317,9 +317,12 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, backgroundTransform2)
         pipeline.drawCall(gpuBackground2)
 
-        # Make the monkey fly
+        # Make the monkey fly and make it so it they can't go above the window
         if controller.fly:
-            controller.monkey_pos += 0.016
+            if controller.monkey_pos >= 0.94:
+                controller.monkey_pos += 0.008
+            else:
+                controller.monkey_pos += 0.016
 
         # Banana positions
         for banana in bananaSet:
