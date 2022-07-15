@@ -1,6 +1,7 @@
 import glfw
 import numpy as np
 import random
+import sys
 from OpenGL.GL import *
 from grafica.gpu_shape import GPUShape
 import grafica.basic_shapes as bs
@@ -247,11 +248,40 @@ if __name__ == "__main__":
         tr.translate(0, 0.8, 0)
     ])
 
+    gameOverText = "Game Over"
+    gameOverCharSize = 0.2
+    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+    gpuGameOver = createGpuShape(textPipeline, gameOverShape)
+    gpuGameOver.texture = gpuText3DTexture
+    gameOverTransform = tr.matmul([
+        tr.translate(-gameOverCharSize * len(gameOverText) / 2, 0.1, -0)
+    ])
+
+    retryText = "Press R to retry"
+    retryCharSize = 0.1
+    retryShape = tx.textToShape(retryText, retryCharSize, retryCharSize)
+    gpuRetry = createGpuShape(textPipeline, retryShape)
+    gpuRetry.texture = gpuText3DTexture
+    retryTransform = tr.matmul([
+        tr.translate(-retryCharSize * len(retryText) / 2, -0.1, 0)
+    ])
+
+    quitText = "or Q to quit"
+    quitCharSize = 0.1
+    quitShape = tx.textToShape(quitText, quitCharSize, quitCharSize)
+    gpuQuit = createGpuShape(textPipeline, quitShape)
+    gpuQuit.texture = gpuText3DTexture
+    quitTransform = tr.matmul([
+        tr.translate(-quitCharSize * len(quitText) / 2, -0.2, 0)
+    ])
+
     glClearColor(0.25, 0.25, 0.25, 1.0)
 
     # Activamos transparencias
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    pointGoal = int(sys.argv[1])
 
     dBackground = 0
     dGround = 0
@@ -339,6 +369,9 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, groundTransform2)
         pipeline.drawCall(gpuGround2)
 
+        if controller.points == pointGoal:
+            controller.gameOver = True
+
         if not controller.gameOver:
             if dBackground >= 2:
                 dBackground = 0
@@ -357,6 +390,30 @@ if __name__ == "__main__":
                 controller.monkey_pos -= 0.008
         else:
             controller.fly = False
+
+            if controller.points == pointGoal:
+                gameOverText = "You Won!"
+                gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+                gpuGameOver.fillBuffers(gameOverShape.vertices, gameOverShape.indices, GL_STREAM_DRAW)
+                gameOverTransform = tr.matmul([
+                    tr.translate(-gameOverCharSize * len(gameOverText) / 2, 0.1, -0)
+                ])
+
+            glUseProgram(textPipeline.shaderProgram)
+            glUniform4f(glGetUniformLocation(textPipeline.shaderProgram, "fontColor"), 1, 1, 1, 1)
+            glUniform4f(glGetUniformLocation(textPipeline.shaderProgram, "backColor"), 0, 0, 0, 0)
+            glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, pointCounterTransform)
+            textPipeline.drawCall(gpuPointCounter)
+
+            glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, gameOverTransform)
+            textPipeline.drawCall(gpuGameOver)
+
+            glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, retryTransform)
+            textPipeline.drawCall(gpuRetry)
+
+            glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, quitTransform)
+            textPipeline.drawCall(gpuQuit)
+
             if glfw.get_key(window, glfw.KEY_R) == glfw.PRESS:
                 # Reset monkey position
                 controller.monkey_pos = 0
@@ -379,14 +436,15 @@ if __name__ == "__main__":
                     pilar.height = banana.height - 0.6
                     reversedPilar.height = banana.height + 0.6
 
-                    banana.draw(controller.gameOver)
-
-                    pilar.draw(controller.gameOver)
-                    reversedPilar.draw(controller.gameOver)
-
                 bananaQueue.clear()
 
                 controller.gameOver = False
+
+                if gameOverText != "Game Over":
+                    gameOverText = "Game Over"
+                    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+                    gpuGameOver.fillBuffers(gameOverShape.vertices, gameOverShape.indices, GL_STREAM_DRAW)
+                
 
         # Text setup
         glUseProgram(textPipeline.shaderProgram)
