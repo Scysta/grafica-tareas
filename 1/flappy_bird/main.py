@@ -317,9 +317,11 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, backgroundTransform2)
         pipeline.drawCall(gpuBackground2)
 
+        # Make the monkey fly
         if controller.fly:
             controller.monkey_pos += 0.016
 
+        # Banana positions
         for banana in bananaSet:
             if bananaCheck(controller.monkey_pos, banana):
                 banana.bananaGet()
@@ -344,6 +346,7 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, cloudTransform)
         pipeline.drawCall(gpuCloud)
 
+        # Setup pilar positions, this could be along banana positions
         for pilar in pilarSet:
             if pilar[0].position <= -1.2:
                 pilar[0].reset(bananaQueue[0])
@@ -370,9 +373,11 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, groundTransform2)
         pipeline.drawCall(gpuGround2)
 
+        # Win condition
         if controller.points == pointGoal:
             controller.gameOver = True
 
+        # While you don't crash
         if not controller.gameOver:
             if dBackground1 >= 2:
                 dBackground1 -= 3.99
@@ -390,13 +395,12 @@ if __name__ == "__main__":
                 dGround += 0.005 * 0.7
 
             # DELETE
-            if controller.monkey_pos <= -1:
-                controller.monkey_pos = 1
-            else:
-                controller.monkey_pos -= 0.008
+            controller.monkey_pos -= 0.008
         else:
+            # Game Over
             controller.fly = False
 
+            # If you reach the needed points
             if controller.points == pointGoal:
                 gameOverText = "You Won!"
                 gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
@@ -420,6 +424,7 @@ if __name__ == "__main__":
             glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, quitTransform)
             textPipeline.drawCall(gpuQuit)
 
+            # Retry game
             if glfw.get_key(window, glfw.KEY_R) == glfw.PRESS:
                 # Reset monkey position
                 controller.monkey_pos = 0
@@ -447,7 +452,6 @@ if __name__ == "__main__":
                     gameOverText = "Game Over"
                     gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
                     gpuGameOver.fillBuffers(gameOverShape.vertices, gameOverShape.indices, GL_STREAM_DRAW)
-                
 
         # Text setup
         glUseProgram(textPipeline.shaderProgram)
