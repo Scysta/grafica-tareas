@@ -76,13 +76,13 @@ class Pillar:
     def reset(self, banana):
         self.position = banana.position + 0.01
         if self.reversed:
-            self.height = banana.height + 0.6
+            self.height = banana.height + 1
         else:
-            self.height = banana.height - 0.6
+            self.height = banana.height - 1
 
     def textureSetup(self):
         self.gpuShape.texture = es.textureSimpleSetup(self.texture,
-            GL_CLAMP_TO_EDGE, GL_REPEAT, GL_NEAREST, GL_NEAREST)
+            GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
 
     def draw(self, paused):
         dPillar = 0.005 * 0.7
@@ -93,14 +93,14 @@ class Pillar:
         if self.reversed:
             M = tr.matmul([
                 tr.translate(self.position, self.height, 0),
-                tr.scale(0.2, 0.75, 0),
+                tr.scale(0.25, 1.6, 0),
                 tr.rotationZ(np.pi)
             ])
 
         else:
             M = tr.matmul([
                 tr.translate(self.position, self.height, 0),
-                tr.scale(0.2, 0.75, 0)
+                tr.scale(0.25, 1.6, 0)
             ])
 
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, M)
@@ -139,7 +139,7 @@ class Banana:
         self.position -= dBanana
         M = tr.matmul([
             tr.translate(self.position, self.height, 0),
-            tr.scale(0.09, 0.1, 1)
+            tr.scale(0.12, 0.13, 1)
         ])
         glUniformMatrix4fv(glGetUniformLocation(self.pipeline.shaderProgram, "transform"), 1, GL_TRUE, M)
         self.pipeline.drawCall(self.gpuShape)
@@ -148,13 +148,13 @@ class Banana:
 def bananaCheck(monkey_pos, banana):
     diff = (-0.5 - banana.position, monkey_pos - banana.height)
     dist = np.linalg.norm(diff)
-    return dist < 0.07
+    return dist < 0.14
 
 
 def collisionCheck(monkey_pos, pilar):
     groundCheck = monkey_pos <= -0.8
-    pillarCheck1 = pilar.position + 0.1 >= -0.5 and pilar.position - 0.1 <= -0.5
-    pillarCheck2 = monkey_pos >= pilar.height + 0.8 or monkey_pos <= pilar.height + 0.4
+    pillarCheck1 = pilar.position + 0.11 >= -0.5 and pilar.position - 0.11 <= -0.5
+    pillarCheck2 = monkey_pos >= pilar.height + 1.2 or monkey_pos <= pilar.height + 0.8
     return groundCheck or (pillarCheck1 and pillarCheck2)
 
 
@@ -166,8 +166,8 @@ if __name__ == "__main__":
         glfw.set_window_should_close(window, True)
 
     # Creamos la ventana
-    width = 600
-    height = 600
+    width = 1366
+    height = 768
 
     window = glfw.create_window(width, height, "Flappy monkey!", None, None)
 
@@ -184,14 +184,14 @@ if __name__ == "__main__":
     pipeline = es.SimpleTextureTransformShaderProgram()
     textPipeline = tx.TextureTextRendererShaderProgram()
 
-    background = bs.createTextureQuad(1000 / width, 1000 / height)
+    background = bs.createTextureQuad(width / 1000, height / 1000)
     gpuBackground1 = createGpuShape(pipeline, background)
-    gpuBackground1.texture = es.textureSimpleSetup("assets/background.png",
-        GL_REPEAT, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
+    gpuBackground1.texture = es.textureSimpleSetup("assets/jungle1.png",
+        GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST)
 
     gpuBackground2 = createGpuShape(pipeline, background)
-    gpuBackground2.texture = es.textureSimpleSetup("assets/background.png",
-        GL_REPEAT, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST)
+    gpuBackground2.texture = es.textureSimpleSetup("assets/jungle2.png",
+        GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST)
 
     ground = bs.createTextureQuad(3, 1)
     gpuGround1 = createGpuShape(pipeline, ground)
@@ -226,11 +226,8 @@ if __name__ == "__main__":
         pilar = Pillar(pipeline)
         reversedPilar = Pillar(pipeline, reversed=True)
 
-        pilar.position = banana.position + 0.001
-        reversedPilar.position = banana.position + 0.001
-
-        pilar.height = banana.height - 0.6
-        reversedPilar.height = banana.height + 0.6
+        pilar.reset(banana)
+        reversedPilar.reset(banana)
 
         pilar.textureSetup()
         reversedPilar.textureSetup()
@@ -281,9 +278,13 @@ if __name__ == "__main__":
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-    pointGoal = int(sys.argv[1])
+    if len(sys.argv) > 1:
+        pointGoal = int(sys.argv[1])
+    else:
+        pointGoal = -1
 
-    dBackground = 0
+    dBackground1 = 0
+    dBackground2 = -2
     dGround = 0
 
     while not glfw.window_should_close(window):
@@ -302,11 +303,11 @@ if __name__ == "__main__":
         glUseProgram(pipeline.shaderProgram)
 
         backgroundTransform1 = tr.matmul([
-            tr.translate(-dBackground, 0, 0),
+            tr.translate(-dBackground1, 0, 0),
             tr.uniformScale(2)
         ])
         backgroundTransform2 = tr.matmul([
-            tr.translate(-dBackground + 2, 0, 0),
+            tr.translate(-dBackground2, 0, 0),
             tr.uniformScale(2)
         ])
 
@@ -373,10 +374,15 @@ if __name__ == "__main__":
             controller.gameOver = True
 
         if not controller.gameOver:
-            if dBackground >= 2:
-                dBackground = 0
+            if dBackground1 >= 2:
+                dBackground1 -= 3.99
             else:
-                dBackground += 0.005
+                dBackground1 += 0.005
+
+            if dBackground2 >= 2:
+                dBackground2 -= 3.99
+            else:
+                dBackground2 += 0.005
 
             if dGround >= 2:
                 dGround = 0
@@ -430,11 +436,8 @@ if __name__ == "__main__":
                     pilar = pilarSet[i][0]
                     reversedPilar = pilarSet[i][1]
 
-                    pilar.position = banana.position + 0.001
-                    reversedPilar.position = banana.position + 0.001
-
-                    pilar.height = banana.height - 0.6
-                    reversedPilar.height = banana.height + 0.6
+                    pilar.reset(banana)
+                    reversedPilar.reset(banana)
 
                 bananaQueue.clear()
 
