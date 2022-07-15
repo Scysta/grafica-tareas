@@ -16,6 +16,7 @@ class Controller:
         self.fly = False
         self.monkey_pos = 0
         self.points = 0
+        self.gameOver = False
 
 
 controller = Controller()
@@ -26,20 +27,31 @@ def on_key(window, key, scancode, action, mods):
 
     global controller
 
-    if (action == glfw.PRESS or action == glfw.REPEAT) and key == glfw.KEY_UP:
-        controller.fly = True
+    if not controller.gameOver:
+        if (action == glfw.PRESS or action == glfw.REPEAT) and key == glfw.KEY_UP:
+            controller.fly = True
 
-    elif action == glfw.RELEASE and key == glfw.KEY_UP:
-        controller.fly = False
+        elif action == glfw.RELEASE and key == glfw.KEY_UP:
+            controller.fly = False
 
-    elif key == glfw.KEY_SPACE and action == glfw.PRESS:
-        controller.fillPolygon = not controller.fillPolygon
+        elif key == glfw.KEY_SPACE and action == glfw.PRESS:
+            controller.fillPolygon = not controller.fillPolygon
 
-    elif key == glfw.KEY_Q:
-        glfw.set_window_should_close(window, True)
+        elif key == glfw.KEY_Q:
+            glfw.set_window_should_close(window, True)
+
+        else:
+            print("Unknown key")
 
     else:
-        print("Unknown key")
+        if key == glfw.KEY_Q:
+            glfw.set_window_should_close(window, True)
+
+        elif key == glfw.KEY_R:
+            pass
+
+        else:
+            print("Unknown key")
 
 
 def createGpuShape(pipeline, shape):
@@ -70,8 +82,12 @@ class Pillar:
         self.gpuShape.texture = es.textureSimpleSetup(self.texture,
             GL_CLAMP_TO_EDGE, GL_REPEAT, GL_NEAREST, GL_NEAREST)
 
-    def draw(self):
-        self.position -= 0.005 * 0.7
+    def draw(self, paused):
+        dPillar = 0.005 * 0.7
+        if paused:
+            dPillar = 0
+        self.position -= dPillar
+
         if self.reversed:
             M = tr.matmul([
                 tr.translate(self.position, self.height, 0),
@@ -99,7 +115,7 @@ class Banana:
         self.texture = "assets/banana.png"
 
     def reset(self):
-        self.position = 1.05
+        self.position += 2.4
 
     def textureSetup(self):
         self.gpuShape.texture = es.textureSimpleSetup(self.texture,
@@ -114,8 +130,11 @@ class Banana:
         self.randomHeight()
         controller.points += 1
 
-    def draw(self):
-        self.position -= 0.005 * 0.7
+    def draw(self, paused):
+        dBanana = 0.005 * 0.7
+        if paused:
+            dBanana = 0
+        self.position -= dBanana
         M = tr.matmul([
             tr.translate(self.position, self.height, 0),
             tr.scale(0.09, 0.1, 1)
@@ -130,6 +149,13 @@ def bananaCheck(monkey_pos, banana):
     return dist < 0.07
 
 
+def collisionCheck(monkey_pos, pilar):
+    groundCheck = monkey_pos <= -0.8
+    pillarCheck1 = pilar.position + 0.1 >= -0.5 and pilar.position - 0.1 <= -0.5
+    pillarCheck2 = monkey_pos >= pilar.height + 0.8 or monkey_pos <= pilar.height + 0.4
+    return groundCheck or (pillarCheck1 and pillarCheck2)
+
+
 # Main loop
 if __name__ == "__main__":
 
@@ -138,8 +164,8 @@ if __name__ == "__main__":
         glfw.set_window_should_close(window, True)
 
     # Creamos la ventana
-    width = 1366
-    height = 768
+    width = 600
+    height = 600
 
     window = glfw.create_window(width, height, "Flappy monkey!", None, None)
 
@@ -215,8 +241,8 @@ if __name__ == "__main__":
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-    dx = 0
-    dx2 = 0
+    dBackground = 0
+    dGround = 0
 
     while not glfw.window_should_close(window):
 
@@ -231,11 +257,11 @@ if __name__ == "__main__":
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
         backgroundTransform1 = tr.matmul([
-            tr.translate(-dx, 0, 0),
+            tr.translate(-dBackground, 0, 0),
             tr.uniformScale(2)
         ])
         backgroundTransform2 = tr.matmul([
-            tr.translate(-dx + 2, 0, 0),
+            tr.translate(-dBackground + 2, 0, 0),
             tr.uniformScale(2)
         ])
 
@@ -254,8 +280,7 @@ if __name__ == "__main__":
                 bananaSet.pop(0)
                 bananaSet.append(banana)
                 bananaQueue.append(banana)
-                print(controller.points)
-            banana.draw()
+            banana.draw(controller.gameOver)
 
         monkeyTransform = tr.matmul([
             tr.translate(-0.5, controller.monkey_pos, 0),
@@ -278,16 +303,18 @@ if __name__ == "__main__":
                 pilar[0].reset(bananaQueue[0])
                 pilar[1].reset(bananaQueue[0])
                 bananaQueue.pop(0)
-            pilar[0].draw()
-            pilar[1].draw()
+            if collisionCheck(controller.monkey_pos, pilar[0]):
+                controller.gameOver = True
+            pilar[0].draw(controller.gameOver)
+            pilar[1].draw(controller.gameOver)
 
         groundTransform1 = tr.matmul([
-            tr.translate(0 - dx2, -0.9, 0),
+            tr.translate(0 - dGround, -0.9, 0),
             tr.scale(2, 0.2, 1)
         ])
 
         groundTransform2 = tr.matmul([
-            tr.translate(2 - dx2, -0.9, 0),
+            tr.translate(2 - dGround, -0.9, 0),
             tr.scale(2, 0.2, 1)
         ])
 
@@ -297,21 +324,26 @@ if __name__ == "__main__":
         glUniformMatrix4fv(glGetUniformLocation(pipeline.shaderProgram, "transform"), 1, GL_TRUE, groundTransform2)
         pipeline.drawCall(gpuGround2)
 
-        if dx >= 2:
-            dx = 0
-        else:
-            dx += 0.005
+        if not controller.gameOver:
+            if dBackground >= 2:
+                dBackground = 0
+            else:
+                dBackground += 0.005
 
-        if dx2 >= 2:
-            dx2 = 0
-        else:
-            dx2 += 0.005 * 0.7
+            if dGround >= 2:
+                dGround = 0
+            else:
+                dGround += 0.005 * 0.7
 
-        if controller.monkey_pos <= -1:
-            controller.monkey_pos = 1
+            # DELETE
+            if controller.monkey_pos <= -1:
+                controller.monkey_pos = 1
+            else:
+                controller.monkey_pos -= 0.008
         else:
-            controller.monkey_pos -= 0.008
-
+            if glfw.get_key(window, glfw.KEY_R) == glfw.PRESS:
+                #Retry
+                pass
         glfw.swap_buffers(window)
 
     gpuMonkey.clear()
@@ -319,5 +351,8 @@ if __name__ == "__main__":
     gpuBackground2.clear()
     for banana in bananaSet:
         banana.gpuShape.clear()
+    for pilar in pilarSet:
+        pilar[0].gpuShape.clear()
+        pilar[1].gpuShape.clear()
 
     glfw.terminate()
