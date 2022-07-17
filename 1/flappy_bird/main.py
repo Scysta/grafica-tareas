@@ -247,29 +247,29 @@ if __name__ == "__main__":
 
     gameOverText = "Game Over"
     gameOverCharSize = 0.2
-    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize - 0.08, gameOverCharSize)
     gpuGameOver = createGpuShape(textPipeline, gameOverShape)
     gpuGameOver.texture = gpuText3DTexture
     gameOverTransform = tr.matmul([
-        tr.translate(-gameOverCharSize * len(gameOverText) / 2, 0.1, -0)
+        tr.translate(-(gameOverCharSize - 0.08) * len(gameOverText) / 2, 0.1, -0)
     ])
 
     retryText = "Press R to retry"
     retryCharSize = 0.1
-    retryShape = tx.textToShape(retryText, retryCharSize, retryCharSize)
+    retryShape = tx.textToShape(retryText, retryCharSize - 0.01, retryCharSize)
     gpuRetry = createGpuShape(textPipeline, retryShape)
     gpuRetry.texture = gpuText3DTexture
     retryTransform = tr.matmul([
-        tr.translate(-retryCharSize * len(retryText) / 2, -0.1, 0)
+        tr.translate(-(retryCharSize - 0.01) * len(retryText) / 2, -0.1, 0)
     ])
 
     quitText = "or Q to quit"
     quitCharSize = 0.1
-    quitShape = tx.textToShape(quitText, quitCharSize, quitCharSize)
+    quitShape = tx.textToShape(quitText, quitCharSize - 0.01, quitCharSize)
     gpuQuit = createGpuShape(textPipeline, quitShape)
     gpuQuit.texture = gpuText3DTexture
     quitTransform = tr.matmul([
-        tr.translate(-quitCharSize * len(quitText) / 2, -0.2, 0)
+        tr.translate(-(quitCharSize - 0.01) * len(quitText) / 2, -0.2, 0)
     ])
 
     glClearColor(0.25, 0.25, 0.25, 1.0)
@@ -406,10 +406,10 @@ if __name__ == "__main__":
             # If you reach the needed points
             if controller.points == pointGoal:
                 gameOverText = "You Won!"
-                gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+                gameOverShape = tx.textToShape(gameOverText, gameOverCharSize - 0.08, gameOverCharSize)
                 gpuGameOver.fillBuffers(gameOverShape.vertices, gameOverShape.indices, GL_STREAM_DRAW)
                 gameOverTransform = tr.matmul([
-                    tr.translate(-gameOverCharSize * len(gameOverText) / 2, 0.1, -0)
+                    tr.translate(-(gameOverCharSize - 0.08) * len(gameOverText) / 2, 0.1, -0)
                 ])
 
             glUseProgram(textPipeline.shaderProgram)
@@ -418,6 +418,7 @@ if __name__ == "__main__":
             glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, pointCounterTransform)
             textPipeline.drawCall(gpuPointCounter)
 
+            glUniform4f(glGetUniformLocation(textPipeline.shaderProgram, "backColor"), 0, 0, 0, 0.5)
             glUniformMatrix4fv(glGetUniformLocation(textPipeline.shaderProgram, "transform"), 1, GL_TRUE, gameOverTransform)
             textPipeline.drawCall(gpuGameOver)
 
@@ -453,8 +454,11 @@ if __name__ == "__main__":
 
                 if gameOverText != "Game Over":
                     gameOverText = "Game Over"
-                    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize, gameOverCharSize)
+                    gameOverShape = tx.textToShape(gameOverText, gameOverCharSize - 0.08, gameOverCharSize)
                     gpuGameOver.fillBuffers(gameOverShape.vertices, gameOverShape.indices, GL_STREAM_DRAW)
+                    gameOverTransform = tr.matmul([
+                        tr.translate(-(gameOverCharSize - 0.08) * len(gameOverText) / 2, 0.1, -0)
+                    ])
 
         # Text setup
         glUseProgram(textPipeline.shaderProgram)
